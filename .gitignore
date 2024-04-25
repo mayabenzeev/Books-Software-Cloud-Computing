@@ -1,0 +1,12 @@
+# macOS system files
+.DS_Store
+
+# IDE specific files
+.idea/
+
+# Python byte-code files
+__pycache__/
+
+# Specific directories or files
+src/.DS_Store
+
