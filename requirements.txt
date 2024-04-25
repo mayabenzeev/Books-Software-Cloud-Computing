@@ -1,0 +1,5 @@
+Flask>=2.0
+Flask-RESTful>=0.3.9
+requests>=2.25
+# google-generativeai==version # Uncomment and replace `version` with the actual version number if available
+
