@@ -1,16 +1,25 @@
-import json
-
-from flask import request
+from flask import request, Flask
 from flask_restful import Resource, Api, reqparse
 from BooksCollection import *
-app = Flask(__name__) # initialize Flask
-api = Api(app) # create API
+
+app = Flask(__name__)  # initialize Flask
+api = Api(app)  # create API
 
 books_collection = BooksCollection()
 
+
 class Books(Resource):
+    """
+    Resource for handling book creation and retrieval.
+    """
 
     def post(self):
+        """
+        Handles POST request to create a new book. Validates and inserts book data.
+
+        Returns:
+            Tuple of message and response status code.
+        """
         content_type = request.headers.get('Content-Type')
         if content_type != 'application/json':
             return 'POST expects content_type to be application/json', 415  # unsupported media type
@@ -24,27 +33,59 @@ class Books(Resource):
             title = args['title']
             isbn = args['ISBN']
             genre = args['genre']
-        except:
+        except KeyError:
             return 'Incorrect POST format', 422  # at least one of the fields is missing
-        id, status = books_collection.insert_book(title, isbn, genre)
+
+        book_id, status = books_collection.insert_book(title, isbn, genre)
         if status == 201:
-            return f"Book Id {id} successfully created", 201
+            return f"Book Id {book_id} successfully created", 201
         return 'Incorrect POST format or book already exists', 422  # problem with data validation
 
     def get(self):
+        """
+        Handles GET request to retrieve books based on query parameters.
+
+        Returns:
+            JSON list of books and response status code.
+        """
         query = request.args
         content, status = books_collection.get_book(dict(query))
+        if status == 422:
+            return "Bad query format", status
         return json.dumps(content), status
 
 
 class Ratings(Resource):
+    """
+    Resource for handling retrieval of ratings for all books.
+    """
+
     def get(self):
+        """
+        Retrieves ratings for all books.
+
+        Returns:
+            JSON list of ratings and response status code.
+        """
         content, status = books_collection.get_book_ratings()
         return json.dumps(content), status
 
 
 class RatingsIdValues(Resource):
-    def post(self, id):
+    """
+    Resource for handling posting ratings to a specific book identified by its ID.
+    """
+
+    def post(self, book_id: str):
+        """
+        Posts a new rating for a book identified by its ID.
+
+        Args:
+            book_id (str): The ID of the book to rate in the db.
+
+        Returns:
+            Message indicating the result and response status code.
+        """
         content_type = request.headers.get('Content-Type')
         if content_type != 'application/json':
             return 'POST expects content_type to be application/json', 415  # unsupported media type
@@ -54,33 +95,69 @@ class RatingsIdValues(Resource):
         args = parser.parse_args()
         try:
             value = args['value']
-        except:
+        except KeyError:
             return 'Incorrect POST format', 422  # at least one of the fields is missing
-        _, avg, status = books_collection.rate_book(id, value)
+        _, avg, status = books_collection.rate_book(book_id, value)
         if status == 201:
-            return f"The book {id} rating average was updated to {avg}", 201
+            return f"The book {book_id} rating average was updated to {avg}", 201
         elif status == 404:
-            return f"Id {id} is not a recognized id", 404
+            return f"Id {book_id} is not a recognized id", 404
         else:
             return 'Incorrect POST format', 422  # problem with data validation
 
 
 class Top(Resource):
+    """
+    Resource for retrieving the top-rated books.
+    """
+
     def get(self):
+        """
+        Retrieves the top-rated books in the db.
+
+        Returns:
+            JSON list of top-rated books and response status code.
+        """
         content, status = books_collection.get_top()
         return json.dumps(content), status
 
 
 class RatingsId(Resource):
-    def get(self, id):
-        content, status = books_collection.get_book_ratings_by_id(id)
+    """
+    Resource for retrieving ratings for a specific book by its ID.
+    """
+
+    def get(self, book_id: str):
+        """
+        Retrieves ratings for a specific book identified by its ID.
+
+        Args:
+            book_id (str): The ID of the book in the db.
+
+        Returns:
+            JSON representation of ratings or error message and response status code.
+        """
+        content, status = books_collection.get_book_ratings_by_id(book_id)
         if status == 404:
-            return f"Id {id} is not a recognized id", 404
+            return f"Id {book_id} is not a recognized id", 404
         return json.dumps(content), status
 
 
 class BooksId(Resource):
-    def put(self, id):
+    """
+    Resource for handling updates, retrieval, and deletion of a specific book by its ID.
+    """
+
+    def put(self, book_id: str):
+        """
+        Updates a book's data identified by its ID.
+
+        Args:
+            book_id (str): The ID of the book to update in the db.
+
+        Returns:
+            Message indicating the result and response status code.
+        """
         content_type = request.headers.get('Content-Type')
         if content_type != 'application/json':
             return 'POST expects content_type to be application/json', 415  # unsupported media type
@@ -105,7 +182,7 @@ class BooksId(Resource):
             genre = args["genre"]
             language = args["language"]
             summary = args["summary"]
-        except:
+        except KeyError:
             return 'Incorrect POST format', 422  # at least one of the fields is missing
         put_values = {"title": title,
                       "authors": authors,
@@ -115,27 +192,45 @@ class BooksId(Resource):
                       "genre": genre,
                       "language": language,
                       "summary": summary,
-                      "id": id}
-        id, status = books_collection.update_book(put_values)
+                      "id": book_id}
+        book_id, status = books_collection.update_book(put_values)
         if status == 200:
-            return f"The book {id} values updated successfully", 200
+            return f"The book {book_id} values updated successfully", 200
         elif status == 404:
-            return f"Id {id} is not a recognized id", 404
+            return f"Id {book_id} is not a recognized id", 404
         else:
             return 'Incorrect POST format', 422  # problem with data validation
 
-    def get(self, id):
-        content, status = books_collection.get_book_by_id(id)
+    def get(self, book_id: str):
+        """
+        Retrieves a specific book by its ID.
+
+        Args:
+            book_id (str): The ID of the book in the db.
+
+        Returns:
+            JSON representation of the book or error message and response status code.
+        """
+        content, status = books_collection.get_book_by_id(book_id)
         if status == 404:
-            return f"Id {id} is not a recognized id", 404
+            return f"Id {book_id} is not a recognized id", 404
         return json.dumps(content), status
 
-    def delete(self, id):
-        _, status = books_collection.delete_book(id)
+    def delete(self, book_id: str):
+        """
+        Deletes a specific book by its ID.
+
+        Args:
+            book_id (str): The ID of the book to delete in the db.
+
+        Returns:
+            Message indicating the result and response status code.
+        """
+        _, status = books_collection.delete_book(book_id)
         if status == 404:
-            return f"Id {id} is not a recognized id", 404
+            return f"Id {book_id} is not a recognized id", 404
         else:
-            return f"Id {id} deleted successfully", status
+            return f"Id {book_id} deleted successfully", status
 
 
 api.add_resource(Books, '/books')
@@ -144,7 +239,6 @@ api.add_resource(RatingsIdValues, '/ratings/<string:id>/values')
 api.add_resource(Top, '/top')
 api.add_resource(RatingsId, '/ratings/<string:id>')
 api.add_resource(Ratings, '/ratings')
-
 
 if __name__ == "__main__":
     print("running books-API")
