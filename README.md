@@ -27,7 +27,7 @@ To run and build the docker container run the following commands:
 $ docker build --tag books:v1 .
 $ docker run -p 8000:8000 books:v1
 ```
-The container will listen on http://127.0.0.1:80
+The container will listen on http://127.0.0.1:8000
 
 #### Collaborators: Maya Ben-Zeev ; Noga Brenner ; Eden Zehavi
 
