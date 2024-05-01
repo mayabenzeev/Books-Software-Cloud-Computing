@@ -234,10 +234,10 @@ class BooksId(Resource):
 
 
 api.add_resource(Books, '/books')
-api.add_resource(BooksId, '/books/<string:id>')
-api.add_resource(RatingsIdValues, '/ratings/<string:id>/values')
+api.add_resource(BooksId, '/books/<string:book_id>')
+api.add_resource(RatingsIdValues, '/ratings/<string:book_id>/values')
 api.add_resource(Top, '/top')
-api.add_resource(RatingsId, '/ratings/<string:id>')
+api.add_resource(RatingsId, '/ratings/<string:book_id>')
 api.add_resource(Ratings, '/ratings')
 
 if __name__ == "__main__":
