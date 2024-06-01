@@ -169,7 +169,7 @@ class BooksCollection:
         # if the {id} is not a recognized id
         if not result:
             return None, 404
-        return result, 200
+        return result[0], 200
 
     def update_book(self, put_values: dict):
         """
@@ -250,14 +250,37 @@ class BooksCollection:
                 return rating, 200
         return None, 404
 
-    def get_book_ratings(self):
+    def get_book_ratings(self, query: dict):
         """
         Retrieve the ratings for all books.
 
         Returns:
             tuple: A tuple containing all ratings and the response status code.
         """
-        return self.db["ratings"], 200
+        # If not specified, return all ratings data
+        if not query:
+            return self.db["ratings"], 200
+
+        filtered_ratings = self.db["ratings"]
+        for field, value in query.items():
+            # String query has uncorrected field names. bad request
+            if field not in self.BOOK_FIELDS:
+                return None, 422
+
+            # Genre in String query is an unsupported genre
+            if field == "genre" and not self.validate_genre(value):
+                return None, 422
+
+            if field == "language":
+                filtered_ratings = [rate for rate in filtered_ratings if value in rate.get(field, '')]
+            else:
+                filtered_ratings = [rate for rate in filtered_ratings if rate.get(field) == value]
+
+            if not filtered_ratings:  # If no books match the criteria, stop searching
+                return [], 200
+        return filtered_ratings, 200
+
+
 
     def get_top(self):
         """

@@ -52,7 +52,7 @@ class Books(Resource):
         content, status = books_collection.get_book(dict(query))
         if status == 422:
             return "Bad query format", status
-        return json.dumps(content), status
+        return content, status
 
 
 class Ratings(Resource):
@@ -67,8 +67,11 @@ class Ratings(Resource):
         Returns:
             JSON list of ratings and response status code.
         """
-        content, status = books_collection.get_book_ratings()
-        return json.dumps(content), status
+        query = request.args
+        content, status = books_collection.get_book_ratings(dict(query))
+        if status == 422:
+            return "Bad query format", status
+        return content, status
 
 
 class RatingsIdValues(Resource):
@@ -119,7 +122,7 @@ class Top(Resource):
             JSON list of top-rated books and response status code.
         """
         content, status = books_collection.get_top()
-        return json.dumps(content), status
+        return content, status
 
 
 class RatingsId(Resource):
@@ -140,7 +143,7 @@ class RatingsId(Resource):
         content, status = books_collection.get_book_ratings_by_id(book_id)
         if status == 404:
             return f"Id {book_id} is not a recognized id", 404
-        return json.dumps(content), status
+        return content, status
 
 
 class BooksId(Resource):
@@ -160,7 +163,7 @@ class BooksId(Resource):
         """
         content_type = request.headers.get('Content-Type')
         if content_type != 'application/json':
-            return 'POST expects content_type to be application/json', 415  # unsupported media type
+            return 'PUT expects content_type to be application/json', 415  # unsupported media type
 
         parser = reqparse.RequestParser()
         parser.add_argument('title', type=str, required=True, location='json')
@@ -183,7 +186,7 @@ class BooksId(Resource):
             language = args["language"]
             summary = args["summary"]
         except KeyError:
-            return 'Incorrect POST format', 422  # at least one of the fields is missing
+            return 'Incorrect PUT format', 422  # at least one of the fields is missing
         put_values = {"title": title,
                       "authors": authors,
                       "ISBN": isbn,
@@ -199,7 +202,7 @@ class BooksId(Resource):
         elif status == 404:
             return f"Id {book_id} is not a recognized id", 404
         else:
-            return 'Incorrect POST format', 422  # problem with data validation
+            return 'Incorrect PUT format', 422  # problem with data validation
 
     def get(self, book_id: str):
         """
@@ -214,7 +217,8 @@ class BooksId(Resource):
         content, status = books_collection.get_book_by_id(book_id)
         if status == 404:
             return f"Id {book_id} is not a recognized id", 404
-        return json.dumps(content), status
+
+        return content, status
 
     def delete(self, book_id: str):
         """
