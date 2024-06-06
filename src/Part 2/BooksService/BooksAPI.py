@@ -1,13 +1,5 @@
 from flask import request, Flask
 from flask_restful import Resource, Api, reqparse
-from BooksCollection import *
-from create_mongo_server import DBManager
-
-app = Flask(__name__)  # initialize Flask
-api = Api(app)  # create API
-
-# books_collection = BooksCollection()
-db = DBManager()
 
 class Books(Resource):
     """
@@ -239,8 +231,3 @@ api.add_resource(Top, '/top')
 api.add_resource(RatingsId, '/ratings/<string:book_id>')
 api.add_resource(Ratings, '/ratings')
 
-if __name__ == "__main__":
-    print("running books-API")
-    books_collection = BooksCollection()
-    # run Flask app
-    app.run(host='0.0.0.0', port=8000, debug=True)

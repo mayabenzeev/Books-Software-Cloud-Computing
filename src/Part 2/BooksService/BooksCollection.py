@@ -1,20 +1,15 @@
 import requests
-import uuid
 import re
-
 from bson import ObjectId
 
-# from BooksAPI import db
-
-
-class LoansCollection:
+class BooksCollection:
     """
     A collection class for managing books and their ratings, leveraging external API data for enrichment.
     """
 
     BOOK_FIELDS = ["title", "authors", "ISBN", "publisher", "publishDate", "genre", "id", "_id"]
 
-    def __init__(self):
+    def __init__(self, db):
         self.books_collection = db.get_collection("books")
         self.ratings_collection = db.get_collection("ratings")
 

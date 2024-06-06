@@ -390,7 +390,7 @@ class BooksCollection:
             str: The API key if loaded successfully, None otherwise.
         """
         try:
-            with open('api_keys_data/API_KEY.json', 'r') as file:
+            with open('APIKeysData/APIKEY.json', 'r') as file:
                 return json.load(file)["KEY"]
         except Exception as e:
             print(f"Failed to load AI API key: {e}")

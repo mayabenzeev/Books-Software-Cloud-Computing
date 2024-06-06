@@ -1,5 +1,6 @@
 from pymongo import MongoClient
 
+
 class DBManager:
     def __init__(self):
         # Connect to the MongoDB server running on localhost at port 27017
