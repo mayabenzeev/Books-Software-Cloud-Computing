@@ -21,6 +21,9 @@ This is a Project 1/3 of Cloud Computing and Software Engineering Course
 /ratings/{id}/values : POST<br />
 /top : GET
 
+/loans : POST, GET<br />
+/loans/{id} : GET, DELETE<br />
+
 ## Setup
 To run and build the docker container run the following commands:
 ```
