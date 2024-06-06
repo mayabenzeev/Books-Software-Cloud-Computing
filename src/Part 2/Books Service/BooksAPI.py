@@ -1,12 +1,13 @@
 from flask import request, Flask
 from flask_restful import Resource, Api, reqparse
 from BooksCollection import *
+from create_mongo_server import DBManager
 
 app = Flask(__name__)  # initialize Flask
 api = Api(app)  # create API
 
-books_collection = BooksCollection()
-
+# books_collection = BooksCollection()
+db = DBManager()
 
 class Books(Resource):
     """
@@ -38,7 +39,7 @@ class Books(Resource):
 
         book_id, status = books_collection.insert_book(title, isbn, genre)
         if status == 201:
-            return f"Book Id {book_id} successfully created", 201
+            return f"Book Id {str(book_id)} successfully created", 201
         return 'Incorrect POST format or book already exists', 422  # problem with data validation
 
     def get(self):
@@ -172,8 +173,6 @@ class BooksId(Resource):
         parser.add_argument('publisher', type=str, required=True, location='json')
         parser.add_argument('publishedDate', type=str, required=True, location='json')
         parser.add_argument('genre', type=str, required=True, location='json')
-        parser.add_argument('language', type=list, required=True, location='json')
-        parser.add_argument('summary', type=str, required=True, location='json')
         args = parser.parse_args()
 
         try:
@@ -183,8 +182,6 @@ class BooksId(Resource):
             publisher = args["publisher"]
             published_date = args["publishedDate"]
             genre = args["genre"]
-            language = args["language"]
-            summary = args["summary"]
         except KeyError:
             return 'Incorrect PUT format', 422  # at least one of the fields is missing
         put_values = {"title": title,
@@ -193,14 +190,12 @@ class BooksId(Resource):
                       "publisher": publisher,
                       "publishedData": published_date,
                       "genre": genre,
-                      "language": language,
-                      "summary": summary,
                       "id": book_id}
         book_id, status = books_collection.update_book(put_values)
         if status == 200:
-            return f"The book {book_id} values updated successfully", 200
+            return f"The book {str(book_id)} values updated successfully", 200
         elif status == 404:
-            return f"Id {book_id} is not a recognized id", 404
+            return f"Id {str(book_id)} is not a recognized id", 404
         else:
             return 'Incorrect PUT format', 422  # problem with data validation
 
@@ -246,5 +241,6 @@ api.add_resource(Ratings, '/ratings')
 
 if __name__ == "__main__":
     print("running books-API")
+    books_collection = BooksCollection()
     # run Flask app
     app.run(host='0.0.0.0', port=8000, debug=True)

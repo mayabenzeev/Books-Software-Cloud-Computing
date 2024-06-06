@@ -1,22 +1,22 @@
-import json
-from itertools import chain
-from statistics import mean
 import requests
 import uuid
 import re
-import google.generativeai as genai
+
+from bson import ObjectId
+
+# from BooksAPI import db
 
 
-class BooksCollection:
+class LoansCollection:
     """
     A collection class for managing books and their ratings, leveraging external API data for enrichment.
     """
 
-    BOOK_FIELDS = ["title", "authors", "ISBN", "publisher", "publishDate", "genre", "language", "summary", "id"]
+    BOOK_FIELDS = ["title", "authors", "ISBN", "publisher", "publishDate", "genre", "id", "_id"]
 
     def __init__(self):
-        self.db = {"books": [], "ratings": []}
-        self.api_key = self.get_ai_api_key()  # Load API key on initialization
+        self.books_collection = db.get_collection("books")
+        self.ratings_collection = db.get_collection("ratings")
 
     @staticmethod
     def validate_title(title):
@@ -101,10 +101,9 @@ class BooksCollection:
         if not (self.validate_data(title, isbn, genre)):
             return None, 422
 
-        book_id = str(uuid.uuid4())
+        # book_id = str(uuid.uuid4())
         book_google_api_data, response_code = self.get_book_google_data(isbn)
-        book_open_lib_api_data, response_code = self.get_book_open_lib_data(isbn)
-        authors = publisher = published_date = language = "missing"
+        authors = publisher = published_date = "missing"
 
         if response_code == 200:
             # handles the case that there is more than one author
@@ -114,13 +113,12 @@ class BooksCollection:
             published_date_str = book_google_api_data["publishedDate"]
             published_date = published_date_str if BooksCollection.validate_publish_date(published_date_str) else (
                 published_date)
-            language = book_open_lib_api_data["language"]
 
         book = dict(title=title, authors=authors, ISBN=isbn, publisher=publisher, publishedDate=published_date,
-                    genre=genre, language=language, summary=self.get_book_ai_info(title, authors), id=book_id)
-        self.db["books"].append(book)
-        self.db["ratings"].append({'values': [], 'average': 0, 'title': title, 'id': book_id})
-        return book_id, 201
+                    genre=genre)
+        book_insert_results = self.books_collection.insert_one(book)
+        self.ratings_collection.insert_one({'_id': book_insert_results.inserted_id, 'values': [], 'average': 0, 'title': title})
+        return book_insert_results.inserted_id, 201
 
     def get_book(self, query: dict):
         """
@@ -132,28 +130,30 @@ class BooksCollection:
         Returns:
             tuple: A tuple of the filtered book list and response status code.
         """
-        # If not specified, return all books data
         if not query:
-            return self.db["books"], 200
+            books_list = [BooksCollection.convert_id_to_string(book) for book in self.books_collection.find()]
+            return books_list, 200  # Return all books if no query specified
 
-        filtered_books = self.db["books"]
-        for field, value in query.items():
-            # String query has uncorrected field names. bad request
+        # Check if the key 'id' exists and rename it to '_id'
+        if 'id' in query:
+            query['_id'] = query.pop('id')
+        # Cast the value of '_id' to ObjectId
+        if '_id' in query:
+            query['_id'] = ObjectId(query['_id'])
+
+        # Validate query fields
+        for field in query:
             if field not in self.BOOK_FIELDS:
-                return None, 422
+                return None, 422  # Return 422 status code if field is not recognized
+            if field == "genre" and not self.validate_genre(query[field]):
+                return None, 422  # Return 422 status code if genre is not valid
 
-            # Genre in String query is an unsupported genre
-            if field == "genre" and not self.validate_genre(value):
-                return None, 422
-
-            if field == "language":
-                filtered_books = [book for book in filtered_books if value in book.get(field, '')]
-            else:
-                filtered_books = [book for book in filtered_books if book.get(field) == value]
-
-            if not filtered_books:  # If no books match the criteria, stop searching
-                return [], 200
+        # Execute the query
+        filtered_books = [BooksCollection.convert_id_to_string(book) for book in self.books_collection.find(query)]
+        if not filtered_books:
+            return [], 200  # Return empty list if no books match the query
         return filtered_books, 200
+
 
     def get_book_by_id(self, book_id: str):
         """
@@ -165,11 +165,11 @@ class BooksCollection:
         Returns:
             tuple: A tuple containing the book or None if not found, and the response status code.
         """
-        result = self.search_by_field("id", book_id)
+        result = self.books_collection.find_one({"_id": ObjectId(book_id)})
         # if the {id} is not a recognized id
         if not result:
             return None, 404
-        return result[0], 200
+        return BooksCollection.convert_id_to_string(result), 200
 
     def update_book(self, put_values: dict):
         """
@@ -181,18 +181,22 @@ class BooksCollection:
        Returns:
            tuple: A tuple containing the updated book ID if successful, None if not, and the response status code.
        """
-        id_value = put_values["id"]
         # genre is not one of excepted values
         if not BooksCollection.validate_genre(put_values["genre"]):
             return None, 422
-        # find a book by payload in /books resource
-        for book in self.db["books"]:
-            if book["id"] == id_value:
-                for field, value in put_values.items():
-                    book[field] = value
-                return id_value, 200
-        # id is not a recognized id
-        return None, 404
+
+        id_query = {"_id": ObjectId(put_values["id"])}
+        update_query = {"$set": put_values}
+
+        # find a book by its id and update by payload in /books resource
+        try:
+            update_res = self.books_collection.update_one(id_query, update_query)
+            if update_res.matched_count == 0:  # id is not a recognized id
+                return None, 404
+            else:
+                return update_res.upserted_id, 200
+        except Exception as e:  # maybe an processable content
+            return None, 422
 
     def delete_book(self, book_id: str):
         """
@@ -205,12 +209,15 @@ class BooksCollection:
             tuple: A tuple containing the ID of the deleted book if successful,
             None if not, and the response status code.
         """
-        for idx, book in enumerate(self.db["books"]):
-            if book["id"] == book_id:
-                del self.db["books"][idx]
-                return book_id, 200
-        # id is not a recognized id
-        return None, 404
+        query = {"_id": ObjectId(book_id)}
+        # Attempt to delete the document
+        result = self.books_collection.delete_one(query)
+        # Check if a document was deleted
+        if result.deleted_count > 0:
+            self.ratings_collection.delete_one(query)
+            return book_id, 200  # Successfully deleted
+        else:
+            return None, 404   # ID is not a recognized id
 
     def rate_book(self, book_id: str, rate: int):
         """
@@ -227,13 +234,26 @@ class BooksCollection:
         if not float(int(rate)) == rate or int(rate) not in [1, 2, 3, 4, 5]:  # invalid rating
             return None, None, 422
 
-        for rating in self.db["ratings"]:
-            if rating["id"] == book_id:
-                rating["values"].append(rate)
-                rating["average"] = mean(rating["values"])
-                return book_id, rating["average"], 201
+        query = {"_id": ObjectId(book_id)}
+        document = self.ratings_collection.find_one(query)
+        if document:
+            ratings = document.get("ratings", [])
+            ratings.append(rate)
+            new_average = sum(ratings) / len(ratings)
 
-        return None, None, 404  # id is not a recognized id
+            # Update the document with new ratings and average
+            update_result = self.ratings_collection.update_one(
+                query,
+                {"$set": {"ratings": ratings, "average": new_average}}
+            )
+            if update_result.modified_count > 0:
+                return book_id, new_average, 201  # Successfully updated
+            else:
+                return None, None, 404  # Update failed
+
+        else:
+            return None, None, 404  # ID is not a recognized id
+
 
     def get_book_ratings_by_id(self, book_id: str):
         """
@@ -245,10 +265,11 @@ class BooksCollection:
         Returns:
             tuple: A tuple containing the ratings if found, None if not, and the response status code.
         """
-        for rating in self.db["ratings"]:
-            if rating["id"] == book_id:
-                return rating, 200
-        return None, 404
+        result = self.ratings_collection.find_one({"_id": ObjectId(book_id)})
+        # if the {id} is not a recognized id
+        if not result:
+            return None, 404
+        return result, 200
 
     def get_book_ratings(self, query: dict):
         """
@@ -259,27 +280,20 @@ class BooksCollection:
         """
         # If not specified, return all ratings data
         if not query:
-            return self.db["ratings"], 200
+            return list(self.ratings_collection.find()), 200
 
-        filtered_ratings = self.db["ratings"]
+        # Check for invalid query fields or unsupported genres
         for field, value in query.items():
-            # String query has uncorrected field names. bad request
             if field not in self.BOOK_FIELDS:
-                return None, 422
-
-            # Genre in String query is an unsupported genre
+                return None, 422  # Bad request due to incorrect field names
             if field == "genre" and not self.validate_genre(value):
-                return None, 422
+                return None, 422  # Bad request due to unsupported genre
 
-            if field == "language":
-                filtered_ratings = [rate for rate in filtered_ratings if value in rate.get(field, '')]
-            else:
-                filtered_ratings = [rate for rate in filtered_ratings if rate.get(field) == value]
-
-            if not filtered_ratings:  # If no books match the criteria, stop searching
-                return [], 200
+        # Execute the query
+        filtered_ratings = list(self.ratings_collection.find(query))
+        if not filtered_ratings:
+            return [], 200  # No results found, but the query was valid
         return filtered_ratings, 200
-
 
 
     def get_top(self):
@@ -289,19 +303,17 @@ class BooksCollection:
         Returns:
             tuple: A tuple containing the list of top-rated books and the response status code.
         """
-        # All books that has at least 3 rates
-        relevant_ratings = {rating["average"] for rating in self.db["ratings"] if len(rating["title"]) >= 3}
-        # Top 3 rating average sorted
-        top_ratings = sorted(relevant_ratings, reverse=True)[:3]
-        top_books = {key: [] for key in top_ratings}
-        # Create a dictionary {rate_avg: [books]}
-        for rating in self.db["ratings"]:
-            # book must have at least 3 ratings
-            if len(rating["values"]) < 3:
-                continue
-            if rating["average"] in top_books.keys():
-                top_books[rating["average"]].append(rating)
-        return list(chain.from_iterable(top_books.values())), 200
+        # Aggregation pipeline to find the top 3 books
+        relevant_ratings_pipeline = [
+            {"$match": {"values": {"$exists": True, "$size": {"$gte": 3}}}},  # Filter documents with at least 3 ratings
+            {"$sort": {"average": -1}},  # Sort documents by the average field in descending order
+            {"$limit": 3}  # Limit the results to the top 3
+            ]
+
+        # Execute the aggregation pipeline
+        top_books = list(self.ratings_collection.aggregate(relevant_ratings_pipeline))
+        return top_books, 200  # Return the top books and status code
+
 
     def search_by_field(self, field: str, value: str):
         """
@@ -314,18 +326,45 @@ class BooksCollection:
         Returns:
             list: A list of books that match the search criteria.
         """
-        result = []
-        if self.db["books"] and field not in self.db["books"][0]:  # Empty db or uncorrected field name
-            return result
+        #TODO: check about the Authors field input (if can be list)
+        # # Check if the value should be treated as an element in a list
+        # if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
+        #     # If value is intended to be a list, search for the value as an element in the list field
+        #     query = {field: {"$in": [value.strip("[]")]}}
+        # else:
+        #     # Normal equality check
+        if field == "id":
+            field = "_id"
+            value = ObjectId(value)
 
-        for book in self.db["books"]:
-            if isinstance(book[field], list):
-                if value in book[field]:
-                    result.append(book)
-            elif value == book[field]:
-                result.append(book)
+        get_query = {field: value}
 
-        return result[0] if len == 1 else result
+        # Perform the query
+        try:
+            result = [BooksCollection.convert_id_to_string(book) for book in self.books_collection.find(get_query)]
+            return result[0] if len(result) == 1 else result
+        except KeyError:
+            # If the field does not exist in any document
+            return []
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return []
+
+    @staticmethod
+    def convert_id_to_string(book: dict):
+        """
+        Convert the '_id' field of a book document to a string.
+
+        Args:
+            book (dict): A book document.
+
+        Returns:
+            dict: The book document with the '_id' field as a string.
+        """
+        if '_id' in book:
+            book['_id'] = str(book['_id'])
+        return book
+
 
     @staticmethod
     def get_book_google_data(isbn: str):
@@ -354,63 +393,3 @@ class BooksCollection:
             "publishedDate": google_books_data.get("publishedDate")
         }
         return book_google_api_data, 200
-
-    @staticmethod
-    def get_book_open_lib_data(isbn: str):
-        """
-        Fetch book language data from Open Library API using the ISBN.
-
-        Args:
-            isbn (str): The ISBN of the book.
-
-        Returns:
-            tuple: A tuple containing the book data from Open Library and the response status code.
-        """
-        open_lib_books_url = f"https://openlibrary.org/search.json?q={isbn}&fields=language"
-        try:
-            response = requests.get(open_lib_books_url)
-            if response.json().get('numFound', 0) == 0:
-                return {"error": "no items returned from Open Library API for given ISBN number"}, 400
-            else:
-                open_lib_books_url = response.json()['docs'][0]
-        except requests.exceptions.RequestException as e:
-            return {"error": str(e)}, 400
-
-        book_google_api_data = {
-            "language": open_lib_books_url.get("language"),
-        }
-        return book_google_api_data, 200
-
-    @staticmethod
-    def get_ai_api_key():
-        """
-        Retrieve the AI API key from a JSON file.
-
-        Returns:
-            str: The API key if loaded successfully, None otherwise.
-        """
-        try:
-            with open('api_keys_data/API_KEY.json', 'r') as file:
-                return json.load(file)["KEY"]
-        except Exception as e:
-            print(f"Failed to load AI API key: {e}")
-            return None
-
-    def get_book_ai_info(self, title: str, authors: str):
-        """
-        Generate a summary for the book using AI based on the title and authors.
-
-        Args:
-           title (str): The title of the book.
-           authors (str): The authors of the book.
-
-        Returns:
-           str: A generated summary of the book.
-        """
-        if not self.api_key:
-            return "AI service unavailable."
-
-        genai.configure(api_key=self.api_key)
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(f"Summarize the book {title} by {authors} in 5 sentences or less.")
-        return response.text
