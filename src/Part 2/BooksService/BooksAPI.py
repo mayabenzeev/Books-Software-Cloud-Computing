@@ -6,6 +6,9 @@ class Books(Resource):
     Resource for handling book creation and retrieval.
     """
 
+    def __init__(self, books_collection):
+        self.books_collection = books_collection
+
     def post(self):
         """
         Handles POST request to create a new book. Validates and inserts book data.
@@ -29,7 +32,7 @@ class Books(Resource):
         except KeyError:
             return 'Incorrect POST format', 422  # at least one of the fields is missing
 
-        book_id, status = books_collection.insert_book(title, isbn, genre)
+        book_id, status = self.books_collection.insert_book(title, isbn, genre)
         if status == 201:
             return f"Book Id {str(book_id)} successfully created", 201
         return 'Incorrect POST format or book already exists', 422  # problem with data validation
@@ -42,7 +45,7 @@ class Books(Resource):
             JSON list of books and response status code.
         """
         query = request.args
-        content, status = books_collection.get_book(dict(query))
+        content, status = self.books_collection.get_book(dict(query))
         if status == 422:
             return "Bad query format", status
         return content, status
@@ -52,6 +55,8 @@ class Ratings(Resource):
     """
     Resource for handling retrieval of ratings for all books.
     """
+    def __init__(self, books_collection):
+        self.books_collection = books_collection
 
     def get(self):
         """
@@ -61,7 +66,7 @@ class Ratings(Resource):
             JSON list of ratings and response status code.
         """
         query = request.args
-        content, status = books_collection.get_book_ratings(dict(query))
+        content, status = self.books_collection.get_book_ratings(dict(query))
         if status == 422:
             return "Bad query format", status
         return content, status
@@ -71,6 +76,8 @@ class RatingsIdValues(Resource):
     """
     Resource for handling posting ratings to a specific book identified by its ID.
     """
+    def __init__(self, books_collection):
+        self.books_collection = books_collection
 
     def post(self, book_id: str):
         """
@@ -93,7 +100,7 @@ class RatingsIdValues(Resource):
             value = args['value']
         except KeyError:
             return 'Incorrect POST format', 422  # at least one of the fields is missing
-        _, avg, status = books_collection.rate_book(book_id, value)
+        _, avg, status = self.books_collection.rate_book(book_id, value)
         if status == 201:
             return f"The book {book_id} rating average was updated to {avg}", 201
         elif status == 404:
@@ -106,6 +113,8 @@ class Top(Resource):
     """
     Resource for retrieving the top-rated books.
     """
+    def __init__(self, books_collection):
+        self.books_collection = books_collection
 
     def get(self):
         """
@@ -114,7 +123,7 @@ class Top(Resource):
         Returns:
             JSON list of top-rated books and response status code.
         """
-        content, status = books_collection.get_top()
+        content, status = self.books_collection.get_top()
         return content, status
 
 
@@ -122,6 +131,8 @@ class RatingsId(Resource):
     """
     Resource for retrieving ratings for a specific book by its ID.
     """
+    def __init__(self, books_collection):
+        self.books_collection = books_collection
 
     def get(self, book_id: str):
         """
@@ -133,7 +144,7 @@ class RatingsId(Resource):
         Returns:
             JSON representation of ratings or error message and response status code.
         """
-        content, status = books_collection.get_book_ratings_by_id(book_id)
+        content, status = self.books_collection.get_book_ratings_by_id(book_id)
         if status == 404:
             return f"Id {book_id} is not a recognized id", 404
         return content, status
@@ -143,6 +154,8 @@ class BooksId(Resource):
     """
     Resource for handling updates, retrieval, and deletion of a specific book by its ID.
     """
+    def __init__(self, books_collection):
+        self.books_collection = books_collection
 
     def put(self, book_id: str):
         """
@@ -183,7 +196,7 @@ class BooksId(Resource):
                       "publishedData": published_date,
                       "genre": genre,
                       "id": book_id}
-        book_id, status = books_collection.update_book(put_values)
+        book_id, status = self.books_collection.update_book(put_values)
         if status == 200:
             return f"The book {str(book_id)} values updated successfully", 200
         elif status == 404:
@@ -201,7 +214,7 @@ class BooksId(Resource):
         Returns:
             JSON representation of the book or error message and response status code.
         """
-        content, status = books_collection.get_book_by_id(book_id)
+        content, status = self.books_collection.get_book_by_id(book_id)
         if status == 404:
             return f"Id {book_id} is not a recognized id", 404
 
@@ -217,17 +230,12 @@ class BooksId(Resource):
         Returns:
             Message indicating the result and response status code.
         """
-        _, status = books_collection.delete_book(book_id)
+        _, status = self.books_collection.delete_book(book_id)
         if status == 404:
             return f"Id {book_id} is not a recognized id", 404
         else:
             return f"Id {book_id} deleted successfully", status
 
 
-api.add_resource(Books, '/books')
-api.add_resource(BooksId, '/books/<string:book_id>')
-api.add_resource(RatingsIdValues, '/ratings/<string:book_id>/values')
-api.add_resource(Top, '/top')
-api.add_resource(RatingsId, '/ratings/<string:book_id>')
-api.add_resource(Ratings, '/ratings')
+#
 

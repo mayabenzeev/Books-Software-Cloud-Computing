@@ -7,147 +7,142 @@ class LoansCollection:
     A collection class for managing books and their ratings, leveraging external API data for enrichment.
     """
 
-    BOOK_FIELDS = ["title", "authors", "ISBN", "publisher", "publishDate", "genre", "id", "_id"]
+    LOAN_FIELDS = ["memberName", "ISBN", "title", "bookID", "loanDate", "loanID"]
 
     def __init__(self, db):
+        self.loans_collection = db.get_collection("loans")
         self.books_collection = db.get_collection("books")
-        self.ratings_collection = db.get_collection("ratings")
 
     @staticmethod
-    def validate_title(title):
+    def validate_member_name(name):
         """
-        Validate that the title is a string and not empty.
+        Validate that the name is a string and not empty.
 
         Args:
-            title (str): The title of the book to validate.
+            name (str): The member name to validate.
 
         Returns:
             bool: True if valid, False otherwise.
         """
-        return isinstance(title, str) and len(title) > 0
+        return isinstance(name, str) and len(name) > 0
+
 
     @staticmethod
-    def validate_genre(genre):
+    def validate_loan_date(date):
         """
-        Validate genre against a preset list of valid genres.
+        Validate loan date against the pattern yyyy-mm-dd or yyyy.
 
         Args:
-            genre (str): The genre to validate.
-
-        Returns:
-            bool: True if the genre is valid, False otherwise.
-        """
-        valid_genres = ["Fiction", "Children", "Biography", "Science", "Science Fiction", "Fantasy", "Other"]
-        return genre in valid_genres
-
-    @staticmethod
-    def validate_publish_date(date):
-        """
-        Validate publish date against the pattern yyyy-mm-dd or yyyy.
-
-        Args:
-            date (str): The publishing date string to validate.
+            date (str): The loan date string to validate.
 
         Returns:
             bool: True if the date matches the pattern, False otherwise.
         """
-        pattern = r'^\d{4}(-\d{2}-\d{2})?$'  # pattern for the format yyyy-mm-dd or yyyy
+        pattern = r'^\d{4}-\d{2}-\d{2}$'  # pattern for the format yyyy-mm-dd
         return bool(re.match(pattern, date))  # Return if the string matches the pattern
 
-    def validate_isbn(self, isbn):
+    def validate_and_return_isbn(self, isbn):
         """
-        Validate that the ISBN is exactly 13 characters long and unique within the database.
+        Validate that the ISBN is exactly 13 characters long, exists within the database, and has not been loaned.
 
         Args:
             isbn (str): The ISBN to validate.
 
         Returns:
-            bool: True if the ISBN is valid and unique, False otherwise.
+            dict: The book document from books db if the ISBN is valid, exists and not loaned, None otherwise.
         """
-        return isinstance(isbn, str) and len(isbn) == 13 and not self.search_by_field("ISBN", isbn)
+        if not isinstance(isbn, str) or len(isbn) != 13 or self.loans_collection.find_one({"ISBN": isbn}):
+            return None
+        return self.books_collection.find_one({"ISBN": isbn})
 
-    def validate_data(self, title, isbn, genre):
+    def validate_data(self, name, loan_date, isbn):
         """
-        Validate the title, ISBN, and genre for a new book.
+        Validate the name, loan date, and ISBN for a new loan.
 
         Args:
-            title (str): The title to validate.
-            isbn (str): The ISBN to validate.
-            genre (str): The genre to validate.
+            name (str): The member name to validate.
+            loan_date (str): The date to validate.
+            isbn (str): The ISBN to validate that exists.
 
         Returns:
-            bool: True if all validations pass, False otherwise.
+            dict: the book document if all validations pass, None otherwise.
         """
-        return BooksCollection.validate_title(title) and BooksCollection.validate_genre(
-            genre) and self.validate_isbn(isbn)
+        book_document = self.validate_and_return_isbn(isbn)
+        if LoansCollection.validate_member_name(name) and LoansCollection.validate_loan_date(
+            loan_date) and book_document:
+            return book_document
+        else:
+            return None
 
-    def insert_book(self, title: str, isbn: str, genre: str):
+    def insert_loan(self, member_name: str, isbn: str, loan_date: str):
         """
-        Insert a new book into the database if it passes validation.
+        Insert a new loan into the database if it passes validation.
 
         Args:
-            title (str): The title of the book.
+            member_name (str): The member_name that wants to loan the book.
             isbn (str): The ISBN of the book.
-            genre (str): The genre of the book.
+            loan_date (str): The date of the loan.
 
         Returns:
-            tuple: A tuple containing the book ID and response status code.
+            tuple: A tuple containing the loanID or false message, and response status code.
         """
-        if not (self.validate_data(title, isbn, genre)):
-            return None, 422
+        book_document = self.validate_data(member_name, isbn, loan_date)
+        if not book_document:
+            return "One of the inserted fields is not valid.", 422
 
-        # book_id = str(uuid.uuid4())
-        book_google_api_data, response_code = self.get_book_google_data(isbn)
-        authors = publisher = published_date = "missing"
+        # Check existing loans
+        if self.loans_collection.find({'memberName': member_name}).count() >= 2:
+            return f"Member {member_name} has 2 loaned books and cannot loan another one.", 422
 
-        if response_code == 200:
-            # handles the case that there is more than one author
-            authors = " and ".join(book_google_api_data["authors"])
-            publisher = book_google_api_data["publisher"]
-            # validate that published date is in the correct format, else define "missing"
-            published_date_str = book_google_api_data["publishedDate"]
-            published_date = published_date_str if BooksCollection.validate_publish_date(published_date_str) else (
-                published_date)
+        # Prepare the loan document
+        loan = {
+            'memberName': member_name,
+            'ISBN': isbn,
+            'title': book_document.get("title"),
+            'bookID': self.convert_id_to_string(book_document.get("_id")),
+            'loanDate': loan_date
+        }
 
-        book = dict(title=title, authors=authors, ISBN=isbn, publisher=publisher, publishedDate=published_date,
-                    genre=genre)
-        book_insert_results = self.books_collection.insert_one(book)
-        self.ratings_collection.insert_one({'_id': book_insert_results.inserted_id, 'values': [], 'average': 0, 'title': title})
-        return book_insert_results.inserted_id, 201
+        # Insert the loan into the database
+        result = self.loans_collection.insert_one(loan)
+        inserted_id = result.inserted_id
 
-    def get_book(self, query: dict):
+        # Update the document to set loanID as the _id value
+        self.loans_collection.update_one({'_id': inserted_id}, {'$set': {'loanID': str(inserted_id)}})
+
+        return inserted_id, 201
+
+    def get_loans(self, query: dict):
         """
-        Retrieve books that match the specified query parameters.
+        Retrieve loans that match the specified query parameters.
 
         Args:
             query (dict): Query parameters for book search.
 
         Returns:
-            tuple: A tuple of the filtered book list and response status code.
+            tuple: A tuple of the filtered loans list and response status code.
         """
         if not query:
-            books_list = [BooksCollection.convert_id_to_string(book) for book in self.books_collection.find()]
-            return books_list, 200  # Return all books if no query specified
+            loans_list = [LoansCollection.convert_id_to_string(loan) for loan in self.loans_collection.find()]
+            return loans_list, 200  # Return all loans if no query specified
 
-        # Check if the key 'id' exists and rename it to '_id'
-        if 'id' in query:
-            query['_id'] = query.pop('id')
+        # Check if the key 'loanID' exists and rename it to '_id'
+        if 'loanID' in query:
+            query['_id'] = query.pop('loanID')
         # Cast the value of '_id' to ObjectId
         if '_id' in query:
             query['_id'] = ObjectId(query['_id'])
 
         # Validate query fields
         for field in query:
-            if field not in self.BOOK_FIELDS:
+            if field not in self.LOAN_FIELDS:
                 return None, 422  # Return 422 status code if field is not recognized
-            if field == "genre" and not self.validate_genre(query[field]):
-                return None, 422  # Return 422 status code if genre is not valid
 
         # Execute the query
-        filtered_books = [BooksCollection.convert_id_to_string(book) for book in self.books_collection.find(query)]
-        if not filtered_books:
-            return [], 200  # Return empty list if no books match the query
-        return filtered_books, 200
+        filtered_loans = [LoansCollection.convert_id_to_string(loan) for loan in self.loans_collection.find(query)]
+        if not filtered_loans:
+            return [], 200  # Return empty list if no loans match the query
+        return filtered_loans, 200
 
 
     def get_book_by_id(self, book_id: str):
@@ -359,32 +354,3 @@ class LoansCollection:
         if '_id' in book:
             book['_id'] = str(book['_id'])
         return book
-
-
-    @staticmethod
-    def get_book_google_data(isbn: str):
-        """
-        Fetch book data from Google Books API using the ISBN.
-
-        Args:
-            isbn (str): The ISBN of the book.
-
-        Returns:
-            tuple: A tuple containing the book data from Google Books and the response status code.
-        """
-        google_books_url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
-        try:
-            response = requests.get(google_books_url)
-            if response.json().get('totalItems', 0) == 0:
-                return {"error": "no items returned from Google Books API for given ISBN number"}, 400
-            else:
-                google_books_data = response.json()['items'][0]['volumeInfo']
-        except requests.exceptions.RequestException as e:
-            return {"error": str(e)}, 400
-
-        book_google_api_data = {
-            "authors": google_books_data.get("authors"),
-            "publisher": google_books_data.get("publisher"),
-            "publishedDate": google_books_data.get("publishedDate")
-        }
-        return book_google_api_data, 200
