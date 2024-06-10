@@ -107,9 +107,6 @@ class LoansCollection:
         result = self.loans_collection.insert_one(loan)
         inserted_id = result.inserted_id
 
-        # Update the document to set loanID as the _id value
-        self.loans_collection.update_one({'_id': inserted_id}, {'$set': {'loanID': str(inserted_id)}})
-
         return inserted_id, 201
 
     def get_loans(self, query: dict):
@@ -144,166 +141,41 @@ class LoansCollection:
             return [], 200  # Return empty list if no loans match the query
         return filtered_loans, 200
 
-
-    def get_book_by_id(self, book_id: str):
+    def get_loan_by_id(self, loan_id: str):
         """
-        Retrieve a book by its unique ID.
+        Retrieve a loan by its unique ID.
 
         Args:
-            book_id (str): The unique identifier of the book in the db.
+            loan_id (str): The unique identifier of the loan in the db.
 
         Returns:
-            tuple: A tuple containing the book or None if not found, and the response status code.
+            tuple: A tuple containing the loan or None if not found, and the response status code.
         """
-        result = self.books_collection.find_one({"_id": ObjectId(book_id)})
+        result = self.books_collection.find_one({"_id": ObjectId(loan_id)})
         # if the {id} is not a recognized id
         if not result:
             return None, 404
-        return BooksCollection.convert_id_to_string(result), 200
+        return LoansCollection.convert_id_to_string(result), 200
 
-    def update_book(self, put_values: dict):
+    def delete_book(self, loan_id: str):
         """
-       Update the details of an existing book based on provided values.
-
-       Args:
-           put_values (dict): A dictionary containing all fields to update.
-
-       Returns:
-           tuple: A tuple containing the updated book ID if successful, None if not, and the response status code.
-       """
-        # genre is not one of excepted values
-        if not BooksCollection.validate_genre(put_values["genre"]):
-            return None, 422
-
-        id_query = {"_id": ObjectId(put_values["id"])}
-        update_query = {"$set": put_values}
-
-        # find a book by its id and update by payload in /books resource
-        try:
-            update_res = self.books_collection.update_one(id_query, update_query)
-            if update_res.matched_count == 0:  # id is not a recognized id
-                return None, 404
-            else:
-                return update_res.upserted_id, 200
-        except Exception as e:  # maybe an processable content
-            return None, 422
-
-    def delete_book(self, book_id: str):
-        """
-        Delete a book from the database by its ID.
+        Delete loan from the database by its ID.
 
         Args:
-            book_id (str): The unique identifier of the book to delete in the db.
+            loan_id (str): The unique identifier of the loan to delete in the db.
 
         Returns:
-            tuple: A tuple containing the ID of the deleted book if successful,
+            tuple: A tuple containing the ID of the deleted loan if successful,
             None if not, and the response status code.
         """
-        query = {"_id": ObjectId(book_id)}
+        query = {"_id": ObjectId(loan_id)}
         # Attempt to delete the document
-        result = self.books_collection.delete_one(query)
+        result = self.loans_collection.delete_one(query)
         # Check if a document was deleted
         if result.deleted_count > 0:
-            self.ratings_collection.delete_one(query)
-            return book_id, 200  # Successfully deleted
+            return loan_id, 200  # Successfully deleted
         else:
             return None, 404   # ID is not a recognized id
-
-    def rate_book(self, book_id: str, rate: int):
-        """
-        Add a rating to a book and update its average rating.
-
-        Args:
-            book_id (str): The ID of the book to rate in the db.
-            rate (int): The rating value, must be an integer between 1 and 5.
-
-        Returns:
-            tuple: A tuple containing the book ID, the new average rating if successful,
-            or None if not, and the response status code.
-        """
-        if not float(int(rate)) == rate or int(rate) not in [1, 2, 3, 4, 5]:  # invalid rating
-            return None, None, 422
-
-        query = {"_id": ObjectId(book_id)}
-        document = self.ratings_collection.find_one(query)
-        if document:
-            ratings = document.get("ratings", [])
-            ratings.append(rate)
-            new_average = sum(ratings) / len(ratings)
-
-            # Update the document with new ratings and average
-            update_result = self.ratings_collection.update_one(
-                query,
-                {"$set": {"ratings": ratings, "average": new_average}}
-            )
-            if update_result.modified_count > 0:
-                return book_id, new_average, 201  # Successfully updated
-            else:
-                return None, None, 404  # Update failed
-
-        else:
-            return None, None, 404  # ID is not a recognized id
-
-
-    def get_book_ratings_by_id(self, book_id: str):
-        """
-        Retrieve the ratings for a specific book by its ID in the db.
-
-        Args:
-            book_id (str): The ID of the book in the db whose ratings are to be retrieved.
-
-        Returns:
-            tuple: A tuple containing the ratings if found, None if not, and the response status code.
-        """
-        result = self.ratings_collection.find_one({"_id": ObjectId(book_id)})
-        # if the {id} is not a recognized id
-        if not result:
-            return None, 404
-        return result, 200
-
-    def get_book_ratings(self, query: dict):
-        """
-        Retrieve the ratings for all books.
-
-        Returns:
-            tuple: A tuple containing all ratings and the response status code.
-        """
-        # If not specified, return all ratings data
-        if not query:
-            return list(self.ratings_collection.find()), 200
-
-        # Check for invalid query fields or unsupported genres
-        for field, value in query.items():
-            if field not in self.BOOK_FIELDS:
-                return None, 422  # Bad request due to incorrect field names
-            if field == "genre" and not self.validate_genre(value):
-                return None, 422  # Bad request due to unsupported genre
-
-        # Execute the query
-        filtered_ratings = list(self.ratings_collection.find(query))
-        if not filtered_ratings:
-            return [], 200  # No results found, but the query was valid
-        return filtered_ratings, 200
-
-
-    def get_top(self):
-        """
-        Retrieve the top three books with the highest average ratings that have at least three ratings.
-
-        Returns:
-            tuple: A tuple containing the list of top-rated books and the response status code.
-        """
-        # Aggregation pipeline to find the top 3 books
-        relevant_ratings_pipeline = [
-            {"$match": {"values": {"$exists": True, "$size": {"$gte": 3}}}},  # Filter documents with at least 3 ratings
-            {"$sort": {"average": -1}},  # Sort documents by the average field in descending order
-            {"$limit": 3}  # Limit the results to the top 3
-            ]
-
-        # Execute the aggregation pipeline
-        top_books = list(self.ratings_collection.aggregate(relevant_ratings_pipeline))
-        return top_books, 200  # Return the top books and status code
-
 
     def search_by_field(self, field: str, value: str):
         """
@@ -331,7 +203,7 @@ class LoansCollection:
 
         # Perform the query
         try:
-            result = [BooksCollection.convert_id_to_string(book) for book in self.books_collection.find(get_query)]
+            result = [LoansCollection.convert_id_to_string(book) for book in self.loans_collection.find(get_query)]
             return result[0] if len(result) == 1 else result
         except KeyError:
             # If the field does not exist in any document

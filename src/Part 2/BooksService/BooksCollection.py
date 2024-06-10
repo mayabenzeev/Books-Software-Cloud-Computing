@@ -64,7 +64,8 @@ class BooksCollection:
         Returns:
             bool: True if the ISBN is valid and unique, False otherwise.
         """
-        return isinstance(isbn, str) and len(isbn) == 13 and not self.search_by_field("ISBN", isbn)
+        return isinstance(isbn, str) and len(isbn) == 13 and not self.books_collection.find_one({"ISBN": isbn})
+        # return isinstance(isbn, str) and len(isbn) == 13 and not self.search_by_field("ISBN", isbn)
 
     def validate_data(self, title, isbn, genre):
         """
