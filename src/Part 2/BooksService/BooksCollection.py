@@ -2,6 +2,7 @@ import requests
 import re
 from bson import ObjectId
 
+
 class BooksCollection:
     """
     A collection class for managing books and their ratings, leveraging external API data for enrichment.

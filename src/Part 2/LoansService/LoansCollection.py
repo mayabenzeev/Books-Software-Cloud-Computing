@@ -1,6 +1,6 @@
-import requests
 import re
 from bson import ObjectId
+
 
 class LoansCollection:
     """
