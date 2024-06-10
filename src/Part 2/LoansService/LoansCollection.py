@@ -7,7 +7,7 @@ class LoansCollection:
     A collection class for managing books and their ratings, leveraging external API data for enrichment.
     """
 
-    LOAN_FIELDS = ["memberName", "ISBN", "title", "bookID", "loanDate", "loanID"]
+    LOAN_FIELDS = ["memberName", "ISBN", "title", "bookID", "loanDate", "loanID", "_id"]
 
     def __init__(self, db):
         self.loans_collection = db.get_collection("loans")
@@ -55,14 +55,14 @@ class LoansCollection:
             return None
         return self.books_collection.find_one({"ISBN": isbn})
 
-    def validate_data(self, name, loan_date, isbn):
+    def validate_data(self, name, isbn, loan_date):
         """
         Validate the name, loan date, and ISBN for a new loan.
 
         Args:
             name (str): The member name to validate.
-            loan_date (str): The date to validate.
             isbn (str): The ISBN to validate that exists.
+            loan_date (str): The date to validate.
 
         Returns:
             dict: the book document if all validations pass, None otherwise.
@@ -99,7 +99,7 @@ class LoansCollection:
             'memberName': member_name,
             'ISBN': isbn,
             'title': book_document.get("title"),
-            'bookID': self.convert_id_to_string(book_document.get("_id")),
+            'bookID': str(book_document.get("_id")),
             'loanDate': loan_date
         }
 
@@ -151,7 +151,7 @@ class LoansCollection:
         Returns:
             tuple: A tuple containing the loan or None if not found, and the response status code.
         """
-        result = self.books_collection.find_one({"_id": ObjectId(loan_id)})
+        result = self.loans_collection.find_one({"_id": ObjectId(loan_id)})
         # if the {id} is not a recognized id
         if not result:
             return None, 404
@@ -177,40 +177,6 @@ class LoansCollection:
         else:
             return None, 404   # ID is not a recognized id
 
-    def search_by_field(self, field: str, value: str):
-        """
-        Helper function: Search for books in the db by a specific field and value.
-
-        Args:
-            field (str): The field to search by.
-            value (str): The value to search for.
-
-        Returns:
-            list: A list of books that match the search criteria.
-        """
-        #TODO: check about the Authors field input (if can be list)
-        # # Check if the value should be treated as an element in a list
-        # if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
-        #     # If value is intended to be a list, search for the value as an element in the list field
-        #     query = {field: {"$in": [value.strip("[]")]}}
-        # else:
-        #     # Normal equality check
-        if field == "id":
-            field = "_id"
-            value = ObjectId(value)
-
-        get_query = {field: value}
-
-        # Perform the query
-        try:
-            result = [LoansCollection.convert_id_to_string(book) for book in self.loans_collection.find(get_query)]
-            return result[0] if len(result) == 1 else result
-        except KeyError:
-            # If the field does not exist in any document
-            return []
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return []
 
     @staticmethod
     def convert_id_to_string(book: dict):
@@ -224,5 +190,7 @@ class LoansCollection:
             dict: The book document with the '_id' field as a string.
         """
         if '_id' in book:
-            book['_id'] = str(book['_id'])
+            book['loanID'] = book.pop('_id')
+        if 'loanID' in book:
+            book['loanID'] = str(book['loanID'])
         return book
