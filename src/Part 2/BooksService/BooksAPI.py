@@ -34,7 +34,7 @@ class Books(Resource):
 
         book_id, status = self.books_collection.insert_book(title, isbn, genre)
         if status == 201:
-            return f"Book Id {str(book_id)} successfully created", 201
+            return f"Book Id {book_id} successfully created", 201
         return 'Incorrect POST format or book already exists', 422  # problem with data validation
 
     def get(self):
@@ -198,9 +198,9 @@ class BooksId(Resource):
                       "id": book_id}
         book_id, status = self.books_collection.update_book(put_values)
         if status == 200:
-            return f"The book {str(book_id)} values updated successfully", 200
+            return f"The book {book_id} values updated successfully", 200
         elif status == 404:
-            return f"Id {str(book_id)} is not a recognized id", 404
+            return f"Id {book_id} is not a recognized id", 404
         else:
             return 'Incorrect PUT format', 422  # problem with data validation
 
@@ -214,6 +214,8 @@ class BooksId(Resource):
         Returns:
             JSON representation of the book or error message and response status code.
         """
+        if len(book_id) != 24:
+            return f"Id {book_id} is not a recognized id", 404
         content, status = self.books_collection.get_book_by_id(book_id)
         if status == 404:
             return f"Id {book_id} is not a recognized id", 404

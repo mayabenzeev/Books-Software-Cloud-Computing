@@ -10,8 +10,8 @@ class LoansCollection:
     LOAN_FIELDS = ["memberName", "ISBN", "title", "bookID", "loanDate", "loanID", "_id"]
 
     def __init__(self, db):
-        self.loans_collection = db.get_collection("loans")
-        self.books_collection = db.get_collection("books")
+        self.loans_collection = db.loans
+        self.books_collection = db.books
 
     @staticmethod
     def validate_member_name(name):
@@ -128,6 +128,9 @@ class LoansCollection:
             query['_id'] = query.pop('loanID')
         # Cast the value of '_id' to ObjectId
         if '_id' in query:
+            if len(query['_id'] != 24):
+                #TODO: check return code
+                return f"Id {query['_id']} is not a recognized id", 404
             query['_id'] = ObjectId(query['_id'])
 
         # Validate query fields
@@ -151,6 +154,9 @@ class LoansCollection:
         Returns:
             tuple: A tuple containing the loan or None if not found, and the response status code.
         """
+        if len(loan_id) != 24:
+            # TODO: check return code
+            return f"Id {len(loan_id)} is not a recognized id", 404
         result = self.loans_collection.find_one({"_id": ObjectId(loan_id)})
         # if the {id} is not a recognized id
         if not result:

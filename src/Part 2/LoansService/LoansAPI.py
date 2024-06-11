@@ -68,6 +68,8 @@ class LoansId(Resource):
         Returns:
             JSON representation of the book or error message and response status code.
         """
+        if len(loan_id) != 24:
+            return f"Id {loan_id} is not a recognized id", 404
         content, status = self.loans_collection.get_loan_by_id(loan_id)
         if status == 404:
             return f"Id {loan_id} is not a recognized id", 404

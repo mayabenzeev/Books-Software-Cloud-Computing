@@ -1,14 +1,61 @@
-version: '3.8'
+#version: "3"
 
 services:
   books-service:
-    build: ./app  # path is relative to docker-compose-shorthand.yml location
+    build:
+      context: .  # Adjust this to the directory that contains `BooksService`, `CreateMongoServer.py`, and `requirements.txt`
+      dockerfile: BooksService/Dockerfile
+    container_name: books-service
+    ports:
+      - "5001:80"
     volumes:
       - type: bind
-        source: ./app #host directory
-        target: /app # container directory
+        source: ./BooksService
+        target: /app
     environment:
+      MONGO_URI: mongodb://mongodb:27017/books
       # tells flask run to run in development mode and reload the code on change. This mode should only be used in development.
       FLASK_DEBUG: "true"
+    depends_on:
+      - mongodb
+    restart: always
+
+  loans-service1:
+    build:
+      context: .  # Adjust this to the directory that contains `BooksService`, `CreateMongoServer.py`, and `requirements.txt`
+      dockerfile: LoansService/Dockerfile
+    container_name: loans-service1
     ports:
-      - "5001:80"  # host:container
+      - "5002:80"
+    volumes:
+      - ./LoansService:/app
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/loans
+      # tells flask run to run in development mode and reload the code on change. This mode should only be used in development.
+      FLASK_DEBUG: "true"
+    depends_on:
+      - mongodb
+    restart: on-failure
+
+  loans-service2:
+    build:
+      context: .  # Adjust this to the directory that contains `BooksService`, `CreateMongoServer.py`, and `requirements.txt`
+      dockerfile: LoansService/Dockerfile
+    container_name: loans-service2
+    ports:
+      - "5003:80"
+    volumes:
+      - ./LoansService:/app
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/loans
+      # tells flask run to run in development mode and reload the code on change. This mode should only be used in development.
+      FLASK_DEBUG: "true"
+    depends_on:
+      - mongodb
+    restart: on-failure
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"

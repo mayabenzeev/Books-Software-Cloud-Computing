@@ -11,8 +11,8 @@ class BooksCollection:
     BOOK_FIELDS = ["title", "authors", "ISBN", "publisher", "publishDate", "genre", "id", "_id"]
 
     def __init__(self, db):
-        self.books_collection = db.get_collection("books")
-        self.ratings_collection = db.get_collection("ratings")
+        self.books_collection = db.books
+        self.ratings_collection = db.ratings
 
     @staticmethod
     def validate_title(title):
@@ -115,7 +115,7 @@ class BooksCollection:
                     genre=genre)
         book_insert_results = self.books_collection.insert_one(book)
         self.ratings_collection.insert_one({'_id': book_insert_results.inserted_id, 'values': [], 'average': 0, 'title': title})
-        return book_insert_results.inserted_id, 201
+        return str(book_insert_results.inserted_id), 201
 
     def get_book(self, query: dict):
         """
@@ -136,6 +136,9 @@ class BooksCollection:
             query['_id'] = query.pop('id')
         # Cast the value of '_id' to ObjectId
         if '_id' in query:
+            if len(query['_id'] != 24):
+                #TODO: check return code
+                return f"Id {query['_id']} is not a recognized id", 404
             query['_id'] = ObjectId(query['_id'])
 
         # Validate query fields
@@ -191,7 +194,7 @@ class BooksCollection:
             if update_res.matched_count == 0:  # id is not a recognized id
                 return None, 404
             else:
-                return update_res.upserted_id, 200
+                return str(update_res.upserted_id), 200
         except Exception as e:  # maybe an processable content
             return None, 422
 
@@ -234,14 +237,14 @@ class BooksCollection:
         query = {"_id": ObjectId(book_id)}
         document = self.ratings_collection.find_one(query)
         if document:
-            ratings = document.get("ratings", [])
+            ratings = document.get("values", [])
             ratings.append(rate)
             new_average = sum(ratings) / len(ratings)
 
             # Update the document with new ratings and average
             update_result = self.ratings_collection.update_one(
                 query,
-                {"$set": {"ratings": ratings, "average": new_average}}
+                {"$set": {"values": ratings, "average": new_average}}
             )
             if update_result.modified_count > 0:
                 return book_id, new_average, 201  # Successfully updated
@@ -266,7 +269,7 @@ class BooksCollection:
         # if the {id} is not a recognized id
         if not result:
             return None, 404
-        return result, 200
+        return BooksCollection.convert_id_to_string(result), 200
 
     def get_book_ratings(self, query: dict):
         """
@@ -277,7 +280,8 @@ class BooksCollection:
         """
         # If not specified, return all ratings data
         if not query:
-            return list(self.ratings_collection.find()), 200
+            ratings_list = [BooksCollection.convert_id_to_string(rating) for rating in self.ratings_collection.find()]
+            return ratings_list, 200
 
         # Check for invalid query fields or unsupported genres
         for field, value in query.items():
@@ -287,7 +291,8 @@ class BooksCollection:
                 return None, 422  # Bad request due to unsupported genre
 
         # Execute the query
-        filtered_ratings = list(self.ratings_collection.find(query))
+        filtered_ratings = [BooksCollection.convert_id_to_string(rating) for rating in
+                            self.ratings_collection.find(query)]
         if not filtered_ratings:
             return [], 200  # No results found, but the query was valid
         return filtered_ratings, 200
@@ -302,13 +307,14 @@ class BooksCollection:
         """
         # Aggregation pipeline to find the top 3 books
         relevant_ratings_pipeline = [
-            {"$match": {"values": {"$exists": True, "$size": {"$gte": 3}}}},  # Filter documents with at least 3 ratings
+            {"$match": {"$expr": {"$gte": [{"$size": "$values"}, 3]}}},
+            # Corrected to filter documents with at least 3 ratings
             {"$sort": {"average": -1}},  # Sort documents by the average field in descending order
             {"$limit": 3}  # Limit the results to the top 3
-            ]
+        ]
 
         # Execute the aggregation pipeline
-        top_books = list(self.ratings_collection.aggregate(relevant_ratings_pipeline))
+        top_books = [BooksCollection.convert_id_to_string(rate) for rate in self.ratings_collection.aggregate(relevant_ratings_pipeline)]
         return top_books, 200  # Return the top books and status code
 
 
