@@ -54,6 +54,16 @@ services:
       - mongodb
     restart: on-failure
 
+  reverse:
+      build: ./reverse
+      ports:
+        - "80:80"
+      depends_on:
+        - books-service
+        - loans-service1
+        - loans-service2
+      container_name: reverse
+
   mongodb:
     image: mongo:latest
     container_name: mongodb
