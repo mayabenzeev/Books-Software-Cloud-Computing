@@ -66,7 +66,6 @@ class BooksCollection:
             bool: True if the ISBN is valid and unique, False otherwise.
         """
         return isinstance(isbn, str) and len(isbn) == 13 and not self.books_collection.find_one({"ISBN": isbn})
-        # return isinstance(isbn, str) and len(isbn) == 13 and not self.search_by_field("ISBN", isbn)
 
     def validate_data(self, title, isbn, genre):
         """
@@ -114,7 +113,8 @@ class BooksCollection:
         book = dict(title=title, authors=authors, ISBN=isbn, publisher=publisher, publishedDate=published_date,
                     genre=genre)
         book_insert_results = self.books_collection.insert_one(book)
-        self.ratings_collection.insert_one({'_id': book_insert_results.inserted_id, 'values': [], 'average': 0, 'title': title})
+        self.ratings_collection.insert_one({'_id': book_insert_results.inserted_id,
+                                            'values': [], 'average': 0, 'title': title})
         return str(book_insert_results.inserted_id), 201
 
     def get_book(self, query: dict):
@@ -137,7 +137,6 @@ class BooksCollection:
         # Cast the value of '_id' to ObjectId
         if '_id' in query:
             if len(query['_id'] != 24):
-                #TODO: check return code
                 return f"Id {query['_id']} is not a recognized id", 404
             query['_id'] = ObjectId(query['_id'])
 
@@ -153,7 +152,6 @@ class BooksCollection:
         if not filtered_books:
             return [], 200  # Return empty list if no books match the query
         return filtered_books, 200
-
 
     def get_book_by_id(self, book_id: str):
         """
@@ -184,11 +182,11 @@ class BooksCollection:
         # genre is not one of excepted values
         if not BooksCollection.validate_genre(put_values["genre"]):
             return None, 422
-
-        id_query = {"_id": ObjectId(put_values["id"])}
+        book_id = put_values.pop("id")
+        id_query = {"_id": ObjectId(book_id)}
         update_query = {"$set": put_values}
 
-        # find a book by its id and update by payload in /books resource
+        #find a book by its id and update by payload in /books resource
         try:
             update_res = self.books_collection.update_one(id_query, update_query)
             if update_res.matched_count == 0:  # id is not a recognized id
@@ -197,6 +195,7 @@ class BooksCollection:
                 return str(update_res.upserted_id), 200
         except Exception as e:  # maybe an processable content
             return None, 422
+
 
     def delete_book(self, book_id: str):
         """
@@ -318,40 +317,6 @@ class BooksCollection:
         return top_books, 200  # Return the top books and status code
 
 
-    def search_by_field(self, field: str, value: str):
-        """
-        Helper function: Search for books in the db by a specific field and value.
-
-        Args:
-            field (str): The field to search by.
-            value (str): The value to search for.
-
-        Returns:
-            list: A list of books that match the search criteria.
-        """
-        #TODO: check about the Authors field input (if can be list)
-        # # Check if the value should be treated as an element in a list
-        # if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
-        #     # If value is intended to be a list, search for the value as an element in the list field
-        #     query = {field: {"$in": [value.strip("[]")]}}
-        # else:
-        #     # Normal equality check
-        if field == "id":
-            field = "_id"
-            value = ObjectId(value)
-
-        get_query = {field: value}
-
-        # Perform the query
-        try:
-            result = [BooksCollection.convert_id_to_string(book) for book in self.books_collection.find(get_query)]
-            return result[0] if len(result) == 1 else result
-        except KeyError:
-            # If the field does not exist in any document
-            return []
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return []
 
     @staticmethod
     def convert_id_to_string(book: dict):

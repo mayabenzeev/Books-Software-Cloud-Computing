@@ -193,7 +193,7 @@ class BooksId(Resource):
                       "authors": authors,
                       "ISBN": isbn,
                       "publisher": publisher,
-                      "publishedData": published_date,
+                      "publishedDate": published_date,
                       "genre": genre,
                       "id": book_id}
         book_id, status = self.books_collection.update_book(put_values)

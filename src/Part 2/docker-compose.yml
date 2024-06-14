@@ -3,7 +3,7 @@
 services:
   books-service:
     build:
-      context: .  # Adjust this to the directory that contains `BooksService`, `CreateMongoServer.py`, and `requirements.txt`
+      context: .
       dockerfile: BooksService/Dockerfile
     container_name: books-service
     ports:
@@ -14,15 +14,14 @@ services:
         target: /app
     environment:
       MONGO_URI: mongodb://mongodb:27017/books
-      # tells flask run to run in development mode and reload the code on change. This mode should only be used in development.
-      FLASK_DEBUG: "true"
+#      FLASK_DEBUG: "true"
     depends_on:
       - mongodb
     restart: always
 
   loans-service1:
     build:
-      context: .  # Adjust this to the directory that contains `BooksService`, `CreateMongoServer.py`, and `requirements.txt`
+      context: .
       dockerfile: LoansService/Dockerfile
     container_name: loans-service1
     ports:
@@ -31,15 +30,14 @@ services:
       - ./LoansService:/app
     environment:
       MONGO_URI: mongodb://mongodb:27017/loans
-      # tells flask run to run in development mode and reload the code on change. This mode should only be used in development.
-      FLASK_DEBUG: "true"
+#      FLASK_DEBUG: "true"
     depends_on:
       - mongodb
-    restart: on-failure
+    restart: always
 
   loans-service2:
     build:
-      context: .  # Adjust this to the directory that contains `BooksService`, `CreateMongoServer.py`, and `requirements.txt`
+      context: .
       dockerfile: LoansService/Dockerfile
     container_name: loans-service2
     ports:
@@ -48,11 +46,10 @@ services:
       - ./LoansService:/app
     environment:
       MONGO_URI: mongodb://mongodb:27017/loans
-      # tells flask run to run in development mode and reload the code on change. This mode should only be used in development.
-      FLASK_DEBUG: "true"
+#      FLASK_DEBUG: "true"
     depends_on:
       - mongodb
-    restart: on-failure
+    restart: always
 
   reverse:
       build: ./reverse
