@@ -26,7 +26,6 @@ class LoansCollection:
         """
         return isinstance(name, str) and len(name) > 0
 
-
     @staticmethod
     def validate_loan_date(date):
         """
@@ -68,8 +67,7 @@ class LoansCollection:
             dict: the book document if all validations pass, None otherwise.
         """
         book_document = self.validate_and_return_isbn(isbn)
-        if LoansCollection.validate_member_name(name) and LoansCollection.validate_loan_date(
-            loan_date) and book_document:
+        if LoansCollection.validate_member_name(name) and LoansCollection.validate_loan_date(loan_date) and book_document:
             return book_document
         else:
             return None
@@ -129,7 +127,6 @@ class LoansCollection:
         # Cast the value of '_id' to ObjectId
         if '_id' in query:
             if len(query['_id'] != 24):
-                #TODO: check return code
                 return f"Id {query['_id']} is not a recognized id", 404
             query['_id'] = ObjectId(query['_id'])
 
@@ -155,7 +152,6 @@ class LoansCollection:
             tuple: A tuple containing the loan or None if not found, and the response status code.
         """
         if len(loan_id) != 24:
-            # TODO: check return code
             return f"Id {len(loan_id)} is not a recognized id", 404
         result = self.loans_collection.find_one({"_id": ObjectId(loan_id)})
         # if the {id} is not a recognized id
@@ -182,7 +178,6 @@ class LoansCollection:
             return loan_id, 200  # Successfully deleted
         else:
             return None, 404   # ID is not a recognized id
-
 
     @staticmethod
     def convert_id_to_string(book: dict):

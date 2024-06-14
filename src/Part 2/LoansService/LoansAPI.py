@@ -51,6 +51,7 @@ class Loans(Resource):
             return "Bad query format", status
         return content, status
 
+
 class LoansId(Resource):
     """
     Resource for handling retrieval, and deletion of a specific loan by its ID.
@@ -91,5 +92,3 @@ class LoansId(Resource):
             return f"Id {loan_id} is not a recognized id", 404
         else:
             return f"Id {loan_id} deleted successfully", status
-#
-

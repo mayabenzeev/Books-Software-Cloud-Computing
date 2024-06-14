@@ -136,7 +136,7 @@ class BooksCollection:
             query['_id'] = query.pop('id')
         # Cast the value of '_id' to ObjectId
         if '_id' in query:
-            if len(query['_id'] != 24):
+            if len(query['_id']) != 24:
                 return f"Id {query['_id']} is not a recognized id", 404
             query['_id'] = ObjectId(query['_id'])
 
@@ -186,16 +186,15 @@ class BooksCollection:
         id_query = {"_id": ObjectId(book_id)}
         update_query = {"$set": put_values}
 
-        #find a book by its id and update by payload in /books resource
+        # find a book by its id and update by payload in /books resource
         try:
             update_res = self.books_collection.update_one(id_query, update_query)
             if update_res.matched_count == 0:  # id is not a recognized id
                 return None, 404
             else:
-                return str(update_res.upserted_id), 200
+                return book_id, 200
         except Exception as e:  # maybe an processable content
             return None, 422
-
 
     def delete_book(self, book_id: str):
         """
@@ -253,7 +252,6 @@ class BooksCollection:
         else:
             return None, None, 404  # ID is not a recognized id
 
-
     def get_book_ratings_by_id(self, book_id: str):
         """
         Retrieve the ratings for a specific book by its ID in the db.
@@ -296,7 +294,6 @@ class BooksCollection:
             return [], 200  # No results found, but the query was valid
         return filtered_ratings, 200
 
-
     def get_top(self):
         """
         Retrieve the top three books with the highest average ratings that have at least three ratings.
@@ -316,8 +313,6 @@ class BooksCollection:
         top_books = [BooksCollection.convert_id_to_string(rate) for rate in self.ratings_collection.aggregate(relevant_ratings_pipeline)]
         return top_books, 200  # Return the top books and status code
 
-
-
     @staticmethod
     def convert_id_to_string(book: dict):
         """
@@ -332,7 +327,6 @@ class BooksCollection:
         if '_id' in book:
             book['_id'] = str(book['_id'])
         return book
-
 
     @staticmethod
     def get_book_google_data(isbn: str):

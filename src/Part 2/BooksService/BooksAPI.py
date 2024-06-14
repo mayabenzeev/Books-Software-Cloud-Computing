@@ -1,6 +1,7 @@
 from flask import request
 from flask_restful import Resource, reqparse
 
+
 class Books(Resource):
     """
     Resource for handling book creation and retrieval.
@@ -237,7 +238,3 @@ class BooksId(Resource):
             return f"Id {book_id} is not a recognized id", 404
         else:
             return f"Id {book_id} deleted successfully", status
-
-
-#
-
