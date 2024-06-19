@@ -152,14 +152,14 @@ class LoansCollection:
             tuple: A tuple containing the loan or None if not found, and the response status code.
         """
         if len(loan_id) != 24:
-            return f"Id {len(loan_id)} is not a recognized id", 404
+            return f"Loan ID format incorrect", 404
         result = self.loans_collection.find_one({"_id": ObjectId(loan_id)})
         # if the {id} is not a recognized id
         if not result:
-            return None, 404
+            return f"Id {str(loan_id)} is not a recognized id", 404
         return LoansCollection.convert_id_to_string(result), 200
 
-    def delete_book(self, loan_id: str):
+    def delete_loan(self, loan_id: str):
         """
         Delete loan from the database by its ID.
 

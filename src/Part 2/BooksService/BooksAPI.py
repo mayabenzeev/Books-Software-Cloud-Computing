@@ -19,7 +19,7 @@ class Books(Resource):
         """
         content_type = request.headers.get('Content-Type')
         if content_type != 'application/json':
-            return 'POST expects content_type to be application/json', 415  # unsupported media type
+            return {'message': 'Content-Type must be application/json'}, 415
 
         parser = reqparse.RequestParser()
         parser.add_argument('title', type=str, required=True, location='json')
@@ -31,12 +31,12 @@ class Books(Resource):
             isbn = args['ISBN']
             genre = args['genre']
         except KeyError:
-            return 'Incorrect POST format', 422  # at least one of the fields is missing
+            return {'message': 'Bad query POST format'}, 422  # at least one of the fields is missing
 
         book_id, status = self.books_collection.insert_book(title, isbn, genre)
         if status == 201:
-            return f"Book Id {book_id} successfully created", 201
-        return 'Incorrect POST format or book already exists', 422  # problem with data validation
+            return {'ID': book_id, 'message': 'Book created successfully'}, 201
+        return {'message': 'Error creating book'}, 422  # problem with data validation
 
     def get(self):
         """
@@ -48,7 +48,7 @@ class Books(Resource):
         query = request.args
         content, status = self.books_collection.get_book(dict(query))
         if status == 422:
-            return "Bad query format", status
+            return {'message': 'Bad query format'}, status
         return content, status
 
 
@@ -69,7 +69,7 @@ class Ratings(Resource):
         query = request.args
         content, status = self.books_collection.get_book_ratings(dict(query))
         if status == 422:
-            return "Bad query format", status
+            return {'message': 'Bad query format'}, 422
         return content, status
 
 
@@ -92,7 +92,7 @@ class RatingsIdValues(Resource):
         """
         content_type = request.headers.get('Content-Type')
         if content_type != 'application/json':
-            return 'POST expects content_type to be application/json', 415  # unsupported media type
+            return {'message': 'Content-Type must be application/json'}, 415  # unsupported media type
 
         parser = reqparse.RequestParser()
         parser.add_argument('value', type=float, required=True, location='json')
@@ -100,14 +100,13 @@ class RatingsIdValues(Resource):
         try:
             value = args['value']
         except KeyError:
-            return 'Incorrect POST format', 422  # at least one of the fields is missing
+            return {'message': 'Bad query POST format'}, 422 # at least one of the fields is missing
         _, avg, status = self.books_collection.rate_book(book_id, value)
         if status == 201:
-            return f"The book {book_id} rating average was updated to {avg}", 201
+            return {'ID': book_id, 'message': f'Rating updated, new average: {avg}'}, 201
         elif status == 404:
-            return f"Id {book_id} is not a recognized id", 404
-        else:
-            return 'Incorrect POST format', 422  # problem with data validation
+            return {'message': 'Book ID not recognized'}, 404
+        return {'message': 'Error updating rating'}, 422 # problem with data validation
 
 
 class Top(Resource):
@@ -147,7 +146,7 @@ class RatingsId(Resource):
         """
         content, status = self.books_collection.get_book_ratings_by_id(book_id)
         if status == 404:
-            return f"Id {book_id} is not a recognized id", 404
+            return {'message': 'Book ID not recognized'}, 404
         return content, status
 
 
@@ -170,7 +169,7 @@ class BooksId(Resource):
         """
         content_type = request.headers.get('Content-Type')
         if content_type != 'application/json':
-            return 'PUT expects content_type to be application/json', 415  # unsupported media type
+            return {'message': 'Content-Type must be application/json'}, 415  # unsupported media type
 
         parser = reqparse.RequestParser()
         parser.add_argument('title', type=str, required=True, location='json')
@@ -189,7 +188,7 @@ class BooksId(Resource):
             published_date = args["publishedDate"]
             genre = args["genre"]
         except KeyError:
-            return 'Incorrect PUT format', 422  # at least one of the fields is missing
+            return {'message': 'Incorrect PUT format'}, 422  # at least one of the fields is missing
         put_values = {"title": title,
                       "authors": authors,
                       "ISBN": isbn,
@@ -199,11 +198,11 @@ class BooksId(Resource):
                       "id": book_id}
         book_id, status = self.books_collection.update_book(put_values)
         if status == 200:
-            return f"The book {book_id} values updated successfully", 200
+            return {'ID': book_id, 'message': 'Book updated successfully'}, 200
         elif status == 404:
-            return f"Id {book_id} is not a recognized id", 404
+            return {'message': 'Book ID not recognized'}, 404
         else:
-            return 'Incorrect PUT format', 422  # problem with data validation
+            return {'message': 'Incorrect PUT format'}, 422  # problem with data validation
 
     def get(self, book_id: str):
         """
@@ -216,11 +215,10 @@ class BooksId(Resource):
             JSON representation of the book or error message and response status code.
         """
         if len(book_id) != 24:
-            return f"Id {book_id} is not a recognized id", 404
+            return {'message': 'Book ID format incorrect'}, 404
         content, status = self.books_collection.get_book_by_id(book_id)
         if status == 404:
-            return f"Id {book_id} is not a recognized id", 404
-
+            return {'message': 'Book ID not recognized'}, 404
         return content, status
 
     def delete(self, book_id: str):
@@ -235,6 +233,5 @@ class BooksId(Resource):
         """
         _, status = self.books_collection.delete_book(book_id)
         if status == 404:
-            return f"Id {book_id} is not a recognized id", 404
-        else:
-            return f"Id {book_id} deleted successfully", status
+            return {'message': 'Book ID not recognized'}, 404
+        return {'ID': book_id, 'message': 'Book deleted successfully'}, 200

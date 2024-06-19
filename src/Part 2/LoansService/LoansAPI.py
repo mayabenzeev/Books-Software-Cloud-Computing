@@ -19,7 +19,7 @@ class Loans(Resource):
         """
         content_type = request.headers.get('Content-Type')
         if content_type != 'application/json':
-            return 'POST expects content_type to be application/json', 415  # unsupported media type
+            return {'message': 'Content-Type must be application/json'}, 415
 
         parser = reqparse.RequestParser()
         parser.add_argument('memberName', type=str, required=True, location='json')
@@ -31,12 +31,12 @@ class Loans(Resource):
             isbn = args['ISBN']
             loan_date = args['loanDate']
         except KeyError:
-            return 'Incorrect POST format', 422  # at least one of the fields is missing
+            return {'message': 'Bad query POST format'}, 422  # at least one of the fields is missing
 
         loan_returned_message, status = self.loans_collection.insert_loan(member_name, isbn, loan_date)
         if status == 201:
-            return f"Loans Id {str(loan_returned_message)} successfully created", 201
-        return loan_returned_message, 422  # problem with data validation
+            return {'ID': str(loan_returned_message), 'message': 'Loan created successfully'}, 201
+        return {'message': loan_returned_message}, 422  # problem with data validation
 
     def get(self):
         """
@@ -48,7 +48,9 @@ class Loans(Resource):
         query = request.args
         content, status = self.loans_collection.get_loans(dict(query))
         if status == 422:
-            return "Bad query format", status
+            return {'message': 'Bad query format'}, 422
+        elif status == 404:
+            return {'message': content}, 404
         return content, status
 
 
@@ -69,12 +71,11 @@ class LoansId(Resource):
         Returns:
             JSON representation of the book or error message and response status code.
         """
-        if len(loan_id) != 24:
-            return f"Id {loan_id} is not a recognized id", 404
+        # if len(loan_id) != 24:
+        #     return {'message': 'Loan ID format incorrect'}, 404
         content, status = self.loans_collection.get_loan_by_id(loan_id)
         if status == 404:
-            return f"Id {loan_id} is not a recognized id", 404
-
+            return {'message': content}, 404
         return content, status
 
     def delete(self, loan_id: str):
@@ -87,8 +88,7 @@ class LoansId(Resource):
         Returns:
             Message indicating the result and response status code.
         """
-        _, status = self.loans_collection.delete_book(loan_id)
+        _, status = self.loans_collection.delete_loan(loan_id)
         if status == 404:
-            return f"Id {loan_id} is not a recognized id", 404
-        else:
-            return f"Id {loan_id} deleted successfully", status
+            return {'message': f'Loan ID {loan_id} is not recognized'}, 404
+        return {'ID': loan_id, 'message': 'Loan deleted successfully'}, 200
