@@ -1,0 +1,26 @@
+#version: "3"
+
+services:
+  books-service:
+    build:
+      context: .
+      dockerfile: BooksService/Dockerfile
+    container_name: books-service
+    ports:
+      - "5001:80"
+    volumes:
+      - type: bind
+        source: ./BooksService
+        target: /app
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/books
+#      FLASK_DEBUG: "true"
+    depends_on:
+      - mongodb
+    restart: always
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
