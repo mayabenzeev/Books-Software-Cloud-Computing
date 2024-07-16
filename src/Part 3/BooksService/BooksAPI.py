@@ -36,7 +36,7 @@ class Books(Resource):
         book_id, status = self.books_collection.insert_book(title, isbn, genre)
         if status == 201:
             return {'ID': book_id, 'message': 'Book created successfully'}, 201
-        return {'message': 'Error creating book'}, 422  # problem with data validation
+        return {'message': 'Error creating book'}, status  # problem with data validation
 
     def get(self):
         """

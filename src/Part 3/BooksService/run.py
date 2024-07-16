@@ -8,6 +8,7 @@ app = Flask(__name__)  # initialize Flask
 api = Api(app)  # create API
 
 app.config["MONGO_URI"] = "mongodb://mongodb:27017/AppDB"  # Use Docker service name for MongoDB
+# app.config["MONGO_URI"] = "mongodb://localhost:27017/AppDB"  # Use Docker service name for MongoDB
 mongo = PyMongo(app)
 books_collection = BooksCollection(mongo.db)
 

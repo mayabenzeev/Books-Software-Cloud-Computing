@@ -6,14 +6,18 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v3
+
     - name: Record start time
       run:
         echo "$(date -Iminutes)" > log.txt
+
     - name: Record submitter names
       run:
         echo "Maya Ben Zeev, Noga Brenner, Eden Zehavy" >> log.txt
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
+
     - name: Build with Docker image
       run: |
         if docker-compose build; then
@@ -22,12 +26,7 @@ jobs:
           echo "image not able to be built" >> log.txt
           exit 1
         fi
-#    - name: Upload build log
-#      if: always()
-#      uses: actions/upload-artifact@v4
-#      with:
-#        name: build-log
-#        path: log.txt
+
 
   test:
     needs: build
@@ -42,8 +41,10 @@ jobs:
           echo "Container failed to run" >> log.txt
           exit 1
         fi
+
     - name: Check container is running
       run: docker ps
+
     - name: Execute pytest inside the container
       run: |
         if docker exec books-service python -m pytest -v /app/tests/; then
@@ -52,6 +53,7 @@ jobs:
           echo "tests failed" >> log.txt
           exit 1
         fi
+
     - name: Upload test results and logs
       if: always()
       uses: actions/upload-artifact@v4
@@ -64,21 +66,51 @@ jobs:
   query:
     needs: test
     runs-on: ubuntu-latest
+    env:
+      BOOKS_URL: 'http://127.0.0.1:5001/books'
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
       - name: Set up Docker
         uses: docker/setup-buildx-action@v2
+
       - name: Start Docker Compose
         run: docker-compose up -d
+
       - name: Check container is running
         run: docker ps
-      - name: Issue Requests and Record Results
-        run: | #TODO: Here you issue your requests to books-service and record results
-          curl http://127.0.0.1:5001/books > results.txt
+
+      - name: Post Books to Initialize Data
+        run: |
+          curl -X POST -H "Content-Type: application/json" -d '{"title": "Adventures of Huckleberry Finn", "ISBN": "9780520343641", "genre": "Fiction"}' ${{ env.BOOKS_URL }}
+          curl -X POST -H "Content-Type: application/json" -d '{"title": "The Best of Isaac Asimov", "ISBN": "9780385050784", "genre": "Science Fiction"}' ${{ env.BOOKS_URL }}
+          curl -X POST -H "Content-Type: application/json" -d '{"title": "Fear No Evil", "ISBN": "9780394558783", "genre": "Biography"}' ${{ env.BOOKS_URL }}
+          curl -X POST -H "Content-Type: application/json" -d '{"title": "The Adventures of Tom Sawyer", "ISBN": "9780195810400", "genre": "Fiction"}' ${{ env.BOOKS_URL }}
+          curl -X POST -H "Content-Type: application/json" -d '{"title": "I, Robot", "ISBN": "9780553294385", "genre": "Science Fiction"}' ${{ env.BOOKS_URL }}
+          curl -X POST -H "Content-Type: application/json" -d '{"title": "Second Foundation", "ISBN": "9780553293364", "genre": "Science Fiction"}' ${{ env.BOOKS_URL }}
+
+      - name: Issue Queries and Record Results
+        run: | 
+          touch response.txt
+          while read -r line
+          do
+            echo "query: $line" >> response.txt
+            response_body=$(curl -s -w "\n%{http_code}" "${{ env.BOOKS_URL }}$line")
+            status_code=$(echo "$response_body" | tail -n1)
+            response_body=$(echo "$response_body" | head -n -1)
+            
+            if [[ "$status_code" -eq 200 ]]; then
+              echo "response: $response_body" >> response.txt
+            else
+              echo "response: error $status_code" >> response.txt
+            fi
+          done < query.txt
+
       - name: Upload Results
         if: always()
         uses: actions/upload-artifact@v3
         with:
           name: query_results
-          path: query/query_results.txt
+          path: response.txt
 

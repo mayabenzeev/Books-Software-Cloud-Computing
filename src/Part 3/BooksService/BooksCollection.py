@@ -99,6 +99,8 @@ class BooksCollection:
 
         # book_id = str(uuid.uuid4())
         book_google_api_data, response_code = self.get_book_google_data(isbn)
+        if response_code != 200:
+            return book_google_api_data, response_code
         authors = publisher = published_date = "missing"
 
         if response_code == 200:
