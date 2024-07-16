@@ -1,0 +1,8 @@
+?genre=Fiction
+?genre=Science%20Fiction
+?ISBN=9780520343641
+?ISBN=9780385050784
+?genre=Biography
+?ISBN=0000001111111  # This should fail if ISBN check is implemented
+?genre=Jokes  # This should fail if genre validation is implemented
+?title=I,%20Robot
