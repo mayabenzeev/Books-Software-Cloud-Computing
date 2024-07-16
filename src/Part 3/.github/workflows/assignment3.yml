@@ -1,0 +1,84 @@
+on:
+  push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Record start time
+      run:
+        echo "$(date -Iminutes)" > log.txt
+    - name: Record submitter names
+      run:
+        echo "Maya Ben Zeev, Noga Brenner, Eden Zehavy" >> log.txt
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    - name: Build with Docker image
+      run: |
+        if docker-compose build; then
+          echo "image successfully built" >> log.txt
+        else
+          echo "image not able to be built" >> log.txt
+          exit 1
+        fi
+#    - name: Upload build log
+#      if: always()
+#      uses: actions/upload-artifact@v4
+#      with:
+#        name: build-log
+#        path: log.txt
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Start Docker Compose
+      run: |
+        if docker-compose up -d; then
+          echo "Container up and running" >> log.txt
+        else
+          echo "Container failed to run" >> log.txt
+          exit 1
+        fi
+    - name: Check container is running
+      run: docker ps
+    - name: Execute pytest inside the container
+      run: |
+        if docker exec books-service python -m pytest -v /app/tests/; then
+          echo "tests succeeded" >> log.txt
+        else
+          echo "tests failed" >> log.txt
+          exit 1
+        fi
+    - name: Upload test results and logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-and-logs
+        path: |
+          log.txt
+          /app/tests/assn3_test_results.txt
+
+  query:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+      - name: Start Docker Compose
+        run: docker-compose up -d
+      - name: Check container is running
+        run: docker ps
+      - name: Issue Requests and Record Results
+        run: | #TODO: Here you issue your requests to books-service and record results
+          curl http://127.0.0.1:5001/books > results.txt
+      - name: Upload Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: query_results
+          path: query/query_results.txt
+
