@@ -49,6 +49,6 @@ $ docker compose up --build
 ```
 Requests as allowed by the Part 2 configurations mentioned earlier.
 
-#### Collaborators: Maya Ben-Zeev ; Noga Brenner ; Eden Zehavi
+#### Collaborators: Maya Ben-Zeev ; Noga Brenner ; Eden Zehavy
 
 
